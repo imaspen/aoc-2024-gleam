@@ -1,5 +1,75 @@
+import argv
+import days/day.{type Day}
+import days/part.{type Part, PartOne, PartTwo}
+import gleam/int
 import gleam/io
+import gleam/result
+import gleam/string
+import simplifile
+
+fn usage_error(message: String) -> Result(_, String) {
+  let message = case message {
+    "" -> ""
+    _ -> "Error: " <> message <> "\n"
+  }
+
+  Error(message <> "Usage: aoc_2024_gleam <day> <part>
+  day: the day to run
+  part: the part to run")
+}
+
+fn day_not_implemented_error(day: String) -> Result(_, String) {
+  Error("Day " <> day <> " not yet implemented")
+}
 
 pub fn main() {
-  io.println("Hello from aoc_2024_gleam!")
+  case argv.load().arguments {
+    [day, part] -> run(day, part)
+    _ -> usage_error("")
+  }
+  |> result.unwrap_both
+  |> io.println
+}
+
+fn run(day day_str: String, part part_str: String) -> Result(String, String) {
+  use #(day_int, day) <- result.try(get_day(day_str))
+  use part: Part <- result.try(get_part(part_str))
+  use input: String <- result.try(get_input(day_int, part_str))
+
+  day(part, input)
+}
+
+fn get_day(day: String) -> Result(#(Int, Day), String) {
+  use day_int <- result.try(case int.parse(day) {
+    Ok(x) -> Ok(x)
+    Error(_) -> usage_error("Day should be a number between 1 & 25")
+  })
+
+  use day_fn <- result.try(case day_int {
+    x if x >= 1 && x <= 25 -> day_not_implemented_error(day)
+    _ -> usage_error("Day should be between 1 & 25")
+  })
+
+  Ok(#(day_int, day_fn))
+}
+
+fn get_part(part: String) -> Result(Part, String) {
+  case part {
+    "1" -> Ok(PartOne)
+    "2" -> Ok(PartTwo)
+    _ -> usage_error("Part should be 1 or 2")
+  }
+}
+
+fn get_input(day: Int, part: String) -> Result(String, String) {
+  let base_path =
+    "./res/day_" <> { int.to_string(day) |> string.pad_start(2, "0") }
+
+  simplifile.read(from: base_path <> ".txt")
+  |> result.lazy_or(fn() {
+    simplifile.read(from: base_path <> "_" <> part <> ".txt")
+  })
+  |> result.replace_error(
+    "Could not find file for day " <> int.to_string(day) <> " part " <> part,
+  )
 }

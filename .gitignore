@@ -3,3 +3,8 @@
 /build
 erl_crash.dump
 .DS_Store
+
+# Don't include our personal input files
+/res/*
+# Include test cases
+!/res/test

@@ -1,0 +1,16 @@
+import days/part.{type Part, PartOne, PartTwo}
+
+pub fn day(part: Part, input: String) -> Result(String, String) {
+  case part {
+    PartOne -> part_1(input)
+    PartTwo -> part_2(input)
+  }
+}
+
+fn part_1(input: String) -> Result(String, String) {
+  todo
+}
+
+fn part_2(input: String) -> Result(String, String) {
+  todo
+}
