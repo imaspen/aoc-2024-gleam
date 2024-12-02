@@ -12,4 +12,7 @@ pub fn part_one_test() {
 
 pub fn part_two_test() {
   let assert Ok(input) = simplifile.read("./res/test/day_02.txt")
+
+  day_02.day(PartTwo, input)
+  |> should.equal(Ok("6"))
 }

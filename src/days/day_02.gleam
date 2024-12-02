@@ -24,7 +24,10 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  lines.space_separated_ints(input)
+  |> list.count(is_report_safe_dampened)
+  |> int.to_string()
+  |> Ok()
 }
 
 fn is_report_safe(report: Report) -> Bool {
@@ -44,4 +47,11 @@ fn is_report_safe_loop(report: Report) -> Bool {
     [x, y, ..rest] if x > y && x - 3 <= y -> is_report_safe_loop([y, ..rest])
     _ -> False
   }
+}
+
+fn is_report_safe_dampened(report: Report) -> Bool {
+  list.any(
+    [report, ..list.combinations(report, list.length(report) - 1)],
+    is_report_safe,
+  )
 }
