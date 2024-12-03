@@ -2,6 +2,7 @@ import argv
 import days/day.{type Day}
 import days/day_01
 import days/day_02
+import days/day_03
 import days/part.{type Part, PartOne, PartTwo}
 import gleam/int
 import gleam/io
@@ -50,6 +51,7 @@ fn get_day(day: String) -> Result(#(Int, Day), String) {
   use day_fn <- result.try(case day_int {
     1 -> Ok(day_01.day)
     2 -> Ok(day_02.day)
+    3 -> Ok(day_03.day)
     x if x >= 1 && x <= 25 -> day_not_implemented_error(day)
     _ -> usage_error("Day should be between 1 & 25")
   })
