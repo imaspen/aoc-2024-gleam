@@ -5,6 +5,7 @@ import gleam/option
 import gleam/pair
 import gleam/regexp
 import gleam/result
+import gleam/string
 
 pub fn day(part: Part, input: String) -> Result(String, String) {
   case part {
@@ -21,7 +22,25 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  get_conditional_mults(input)
+  |> list.fold(0, fn(acc, val) { pair.first(val) * pair.second(val) + acc })
+  |> int.to_string
+  |> Ok
+}
+
+fn get_conditional_mults(input: String) {
+  let assert Ok(re) =
+    regexp.from_string(
+      "don't\\(\\).*?(?:(?=don't\\(\\))|do\\(\\))|don't\\(\\).*?$",
+    )
+
+  // gleam doesn't support single line mode in regexp,
+  // so replace new lines with spaces
+  let single_lined = string.replace(input, "\n", " ")
+
+  regexp.split(re, single_lined)
+  |> string.join("")
+  |> get_mults
 }
 
 fn get_mults(input: String) -> List(#(Int, Int)) {
