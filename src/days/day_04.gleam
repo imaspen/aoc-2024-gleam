@@ -28,8 +28,18 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  input
+  |> lines.lines
+  |> list.map(string.split(_, ""))
+  |> list.window(3)
+  |> list.map(grouped)
+  |> list.map(list.count(_, check_for_xmas))
+  |> int.sum
+  |> int.to_string
+  |> Ok
 }
+
+// -------- PART ONE HELPERS --------
 
 fn rotate_lines(lines: List(String)) -> List(String) {
   lines
@@ -80,4 +90,26 @@ fn get_xmases_in_line(line: String) -> Int {
     regexp.scan(backward, line)
     |> list.length
   }
+}
+
+// -------- PART TWO HELPERS --------
+
+fn grouped(inputs: List(List(String))) -> List(String) {
+  let assert [x, y, z] = inputs
+
+  list.zip(list.window(x, 3), list.zip(list.window(y, 3), list.window(z, 3)))
+  |> list.map(unwrap_zips)
+}
+
+fn unwrap_zips(inputs: #(List(String), #(List(String), List(String)))) -> String {
+  let #(a, #(b, c)) = inputs
+
+  string.join(a, "") <> string.join(b, "") <> string.join(c, "")
+}
+
+fn check_for_xmas(group: String) -> Bool {
+  let assert Ok(re) =
+    regexp.from_string("M.M.A.S.S|S.S.A.M.M|M.S.A.M.S|S.M.A.S.M")
+
+  regexp.check(re, group)
 }
