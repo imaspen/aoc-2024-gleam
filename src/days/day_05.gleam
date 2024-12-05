@@ -33,6 +33,28 @@ pub fn day(part: Part, input: String) -> Result(String, String) {
 }
 
 fn part_1(input: String) -> Result(String, String) {
+  use #(pages_list, rules) <- result.try(get_pages_and_rules(input))
+
+  pages_list
+  |> list.filter(is_sorted(_, rules))
+  |> list.map(get_middle_page)
+  |> int.sum
+  |> int.to_string
+  |> Ok
+}
+
+fn part_2(input: String) -> Result(String, String) {
+  use #(pages_list, rules) <- result.try(get_pages_and_rules(input))
+
+  pages_list
+  |> list.filter_map(required_sorting(_, rules))
+  |> list.map(get_middle_page)
+  |> int.sum
+  |> int.to_string
+  |> Ok
+}
+
+fn get_pages_and_rules(input: String) -> Result(#(List(Pages), Rules), String) {
   use #(rules, pages) <- result.try(case lines.blocks(input) {
     [rules, pages] -> Ok(#(rules, pages))
     _ -> Error("Could not parse input")
@@ -43,16 +65,7 @@ fn part_1(input: String) -> Result(String, String) {
   use definitions <- result.try(lines.lines(rules) |> parse_definitions)
   let rules = create_rules(definitions)
 
-  pages_list
-  |> list.filter(is_sorted(_, rules))
-  |> list.map(get_middle_page)
-  |> int.sum
-  |> string.inspect
-  |> Ok
-}
-
-fn part_2(input: String) -> Result(String, String) {
-  todo
+  Ok(#(pages_list, rules))
 }
 
 fn parse_definitions(
@@ -107,6 +120,15 @@ fn compare_pages(a: Page, b: Page, rules: Rules) -> Order {
 
 fn is_sorted(pages: Pages, rules: Rules) -> Bool {
   pages == list.sort(pages, fn(a, b) { compare_pages(a, b, rules) })
+}
+
+fn required_sorting(pages: Pages, rules: Rules) -> Result(Pages, Nil) {
+  let sorted = list.sort(pages, fn(a, b) { compare_pages(a, b, rules) })
+
+  case pages == sorted {
+    True -> Error(Nil)
+    False -> Ok(sorted)
+  }
 }
 
 fn get_middle_page(pages: Pages) -> Int {
