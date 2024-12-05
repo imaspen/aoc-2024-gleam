@@ -4,6 +4,7 @@ import days/day_01
 import days/day_02
 import days/day_03
 import days/day_04
+import days/day_05
 import days/part.{type Part, PartOne, PartTwo}
 import gleam/int
 import gleam/io
@@ -54,6 +55,7 @@ fn get_day(day: String) -> Result(#(Int, Day), String) {
     2 -> Ok(day_02.day)
     3 -> Ok(day_03.day)
     4 -> Ok(day_04.day)
+    5 -> Ok(day_05.day)
     x if x >= 1 && x <= 25 -> day_not_implemented_error(day)
     _ -> usage_error("Day should be between 1 & 25")
   })
