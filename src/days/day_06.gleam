@@ -1,6 +1,5 @@
 import days/part.{type Part, PartOne, PartTwo}
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/pair
 import gleam/result
@@ -36,6 +35,9 @@ type Map =
 type Visited =
   Set(Position)
 
+type Visited2 =
+  Set(#(Position, Direction))
+
 pub fn day(part: Part, input: String) -> Result(String, String) {
   case part {
     PartOne -> part_1(input)
@@ -44,7 +46,7 @@ pub fn day(part: Part, input: String) -> Result(String, String) {
 }
 
 fn part_1(input: String) -> Result(String, String) {
-  let rows = input |> lines.lines
+  let rows = lines.lines(input)
   let map = rows |> list.map(parse_row) |> array.from_list
   use start_pos <- result.try(
     get_start_pos(rows) |> result.replace_error("Could not find start location"),
@@ -57,7 +59,17 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  let rows = lines.lines(input)
+  let map = rows |> list.map(parse_row) |> array.from_list
+  use start_pos <- result.try(
+    get_start_pos(rows) |> result.replace_error("Could not find start location"),
+  )
+
+  loop(map, Guard(start_pos, North), set.new())
+  |> set.to_list
+  |> list.count(check_obstruction(_, map, start_pos))
+  |> int.to_string
+  |> Ok
 }
 
 fn loop(map: Map, guard: Guard, visited: Visited) -> Visited {
@@ -68,6 +80,43 @@ fn loop(map: Map, guard: Guard, visited: Visited) -> Visited {
     Error(_) -> new_visited
     Ok(Empty) -> loop(map, walked, new_visited)
     Ok(Wall) -> loop(map, turned, new_visited)
+  }
+}
+
+fn check_obstruction(
+  to_obstruct: Position,
+  map: Map,
+  start_pos: Position,
+) -> Bool {
+  loop2(obstruct(map, to_obstruct), Guard(start_pos, North), set.new())
+}
+
+fn obstruct(map: Map, pos: Position) -> Map {
+  array.copy_set(
+    map,
+    pos.y,
+    array.copy_set(
+      array.get(map, pos.y) |> result.unwrap(array.new()),
+      pos.x,
+      Wall,
+    )
+      |> result.unwrap(array.new()),
+  )
+  |> result.unwrap(array.new())
+}
+
+fn loop2(map: Map, guard: Guard, visited: Visited2) -> Bool {
+  let new_visited = set.insert(visited, #(guard.position, guard.facing))
+  let walked = walk(guard)
+  let turned = turn(guard)
+  case
+    get_location(map, walked.position),
+    set.contains(visited, #(walked.position, walked.facing))
+  {
+    _, True -> True
+    Error(_), _ -> False
+    Ok(Empty), _ -> loop2(map, walked, new_visited)
+    Ok(Wall), _ -> loop2(map, turned, new_visited)
   }
 }
 
@@ -119,30 +168,4 @@ fn parse_char(char: String) -> Location {
     "#" -> Wall
     _ -> Empty
   }
-}
-
-fn debug_map(map: Map, visited: Set(Position)) -> Nil {
-  array.to_list(map)
-  |> yielder.from_list
-  |> yielder.index
-  |> yielder.map(fn(i) {
-    let #(row, y) = i
-    array.to_list(row)
-    |> yielder.from_list
-    |> yielder.index
-    |> yielder.map(fn(j) {
-      let #(point, x) = j
-
-      case set.contains(visited, Position(x, y)), point {
-        True, _ -> "X"
-        False, Wall -> "#"
-        False, _ -> "."
-      }
-    })
-    |> yielder.to_list
-    |> string.join("")
-  })
-  |> yielder.to_list
-  |> string.join("\n")
-  |> io.println
 }
