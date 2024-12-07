@@ -11,6 +11,7 @@ type Equation {
 
 type Operator {
   Add
+  Concat
   Multiply
 }
 
@@ -36,7 +37,17 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use equations <- result.try(
+    input
+    |> lines.lines
+    |> list.try_map(parse_equation),
+  )
+
+  list.filter(equations, check_equation_2)
+  |> list.map(fn(e) { e.target })
+  |> int.sum
+  |> int.to_string
+  |> Ok
 }
 
 fn parse_equation(line: String) -> Result(Equation, String) {
@@ -77,9 +88,39 @@ fn check_equation_loop(
   }
 }
 
+fn check_equation_2(equation: Equation) -> Bool {
+  check_equation_loop_2(equation.target, equation.parts, 0, Add)
+}
+
+fn check_equation_loop_2(
+  target: Int,
+  remaining: List(Int),
+  total: Int,
+  operator: Operator,
+) -> Bool {
+  case remaining {
+    [] -> total == target
+    [next, ..rest] -> {
+      let new_total = do_operation(total, operator, next)
+
+      check_equation_loop_2(target, rest, new_total, Add)
+      || check_equation_loop_2(target, rest, new_total, Multiply)
+      || check_equation_loop_2(target, rest, new_total, Concat)
+    }
+  }
+}
+
 fn do_operation(lhs: Int, operator: Operator, rhs: Int) -> Int {
   case operator {
     Add -> lhs + rhs
+    Concat -> raise_lhs(lhs, rhs) + rhs
     Multiply -> lhs * rhs
+  }
+}
+
+fn raise_lhs(lhs: Int, rhs: Int) -> Int {
+  case rhs >= 10 {
+    True -> raise_lhs(lhs * 10, rhs / 10)
+    False -> lhs * 10
   }
 }
