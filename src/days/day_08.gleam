@@ -51,7 +51,23 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use map_size <- result.try(
+    map_size(input) |> result.replace_error("Failed to parse input"),
+  )
+  use antennas <- result.map(
+    input
+    |> lines.lines
+    |> yielder.from_list
+    |> yielder.index
+    |> yielder.try_fold(dict.new(), parse_line)
+    |> result.replace_error("Failed to parse input"),
+  )
+
+  antennas
+  |> dict.values
+  |> list.fold(set.new(), find_antinodes_for_antenna_2(map_size))
+  |> set.size
+  |> int.to_string
 }
 
 fn map_size(input: String) -> Result(Vector, Nil) {
@@ -140,4 +156,43 @@ fn is_point_in_map(point: Vector, map_size: Vector) -> Bool {
   let Vector(x: max_x, y: max_y) = map_size
 
   x >= 0 && x < max_x && y >= 0 && y < max_y
+}
+
+fn find_antinodes_for_antenna_2(
+  map_size: Vector,
+) -> fn(Antinodes, List(Vector)) -> Antinodes {
+  fn(antinodes: Antinodes, positions: List(Vector)) {
+    list.combination_pairs(positions)
+    |> list.fold(antinodes, find_antinodes_for_pair_2(map_size))
+  }
+}
+
+fn find_antinodes_for_pair_2(
+  map_size: Vector,
+) -> fn(Antinodes, #(Vector, Vector)) -> Antinodes {
+  fn(antinodes: Antinodes, positions: #(Vector, Vector)) {
+    let #(lhs, rhs) = positions
+
+    antinodes
+    |> find_antinodes_for_pair_2_loop(rhs, sub_vectors(lhs, rhs), map_size)
+    |> find_antinodes_for_pair_2_loop(lhs, sub_vectors(rhs, lhs), map_size)
+  }
+}
+
+fn find_antinodes_for_pair_2_loop(
+  antinodes: Antinodes,
+  at: Vector,
+  offset: Vector,
+  map_size: Vector,
+) -> Antinodes {
+  case is_point_in_map(at, map_size) {
+    True ->
+      find_antinodes_for_pair_2_loop(
+        set.insert(antinodes, at),
+        add_vectors(at, offset),
+        offset,
+        map_size,
+      )
+    False -> antinodes
+  }
 }

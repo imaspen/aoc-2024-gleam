@@ -1,5 +1,5 @@
 import days/day_08
-import days/part.{PartOne}
+import days/part.{PartOne, PartTwo}
 import gleeunit/should
 import simplifile
 
@@ -16,4 +16,11 @@ pub fn part_one_test() {
 
   day_08.day(PartOne, input_3)
   |> should.equal(Ok("14"))
+}
+
+pub fn part_two_test() {
+  let assert Ok(input) = simplifile.read("./res/test/day_08.3.txt")
+
+  day_08.day(PartTwo, input)
+  |> should.equal(Ok("34"))
 }
