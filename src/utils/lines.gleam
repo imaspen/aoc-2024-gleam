@@ -39,3 +39,11 @@ pub fn blocks(input: String) -> List(String) {
   |> string.trim
   |> string.split("\n\n")
 }
+
+pub fn digits(input: String) -> Result(List(Int), String) {
+  input
+  |> string.trim
+  |> string.to_graphemes
+  |> list.try_map(int.parse)
+  |> result.replace_error("Couldn't parse input")
+}
