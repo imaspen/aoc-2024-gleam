@@ -3,6 +3,7 @@ import gleam/deque.{type Deque}
 import gleam/int
 import gleam/list
 import gleam/result
+import gleam/set.{type Set}
 import gleam/string
 import gleam/yielder
 import utils/lines
@@ -17,6 +18,14 @@ type File {
 type Free {
   Free(id: FileId, files: Deque(File), length: Int)
 }
+
+type Block {
+  BFile(file: File)
+  BFree(length: Int)
+}
+
+type Memory =
+  Deque(Block)
 
 pub fn day(part: Part, input: String) -> Result(String, String) {
   case part {
@@ -46,7 +55,105 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use digits <- result.map(input |> lines.digits)
+
+  digits
+  |> yielder.from_list
+  |> yielder.sized_chunk(2)
+  |> yielder.index
+  |> yielder.fold(deque.new(), parse_chunk_2)
+  |> move_files_2
+  |> calculate_checksum_2(0, 0)
+  |> string.inspect
+}
+
+fn calculate_checksum_2(memory: Memory, pos: Int, acc: Int) -> Int {
+  case deque.pop_front(memory) {
+    Error(_) -> acc
+    Ok(#(BFree(size), rest)) -> calculate_checksum_2(rest, pos + size, acc)
+    Ok(#(BFile(File(id: _, length: 0)), rest)) ->
+      calculate_checksum_2(rest, pos, acc)
+    Ok(#(BFile(File(id:, length:)), rest)) ->
+      calculate_checksum_2(
+        deque.push_front(rest, BFile(File(id:, length: length - 1))),
+        pos + 1,
+        acc + id * pos,
+      )
+  }
+}
+
+fn parse_chunk_2(memory: Memory, input: #(List(Int), FileId)) -> Memory {
+  let #(pair, index) = input
+  case pair {
+    [file, 0, ..] -> deque.push_back(memory, BFile(File(index, file)))
+    [file, free, ..] ->
+      memory
+      |> deque.push_back(BFile(File(index, file)))
+      |> deque.push_back(BFree(free))
+    [file] -> deque.push_back(memory, BFile(File(index, file)))
+    [] -> memory
+  }
+}
+
+fn move_files_2(memory: Memory) -> Memory {
+  move_files_2_loop(memory, set.new())
+}
+
+fn move_files_2_loop(memory: Memory, moved: Set(FileId)) -> Memory {
+  case find_file_to_move(memory, deque.new(), moved) {
+    Ok(#(file, left_memory, right_memory)) -> {
+      move_files_2_loop(
+        push_all_back(move_file(file, left_memory, deque.new()), right_memory),
+        set.insert(moved, file.id),
+      )
+    }
+    Error(_) -> memory
+  }
+}
+
+fn move_file(
+  file: File,
+  remaining_memory: Memory,
+  seen_memory: Memory,
+) -> Memory {
+  case deque.pop_front(remaining_memory) {
+    Error(_) -> deque.push_back(seen_memory, BFile(file))
+    Ok(#(block, new_remaining)) ->
+      case block {
+        BFile(_) ->
+          move_file(file, new_remaining, deque.push_back(seen_memory, block))
+        BFree(size) if size < file.length ->
+          move_file(file, new_remaining, deque.push_back(seen_memory, block))
+        BFree(size) if size == file.length ->
+          seen_memory
+          |> deque.push_back(BFile(file))
+          |> push_all_back(new_remaining)
+          |> deque.push_back(BFree(file.length))
+        BFree(size) ->
+          seen_memory
+          |> deque.push_back(BFile(file))
+          |> deque.push_back(BFree(size - file.length))
+          |> push_all_back(new_remaining)
+          |> deque.push_back(BFree(file.length))
+      }
+  }
+}
+
+fn find_file_to_move(
+  left_memory: Memory,
+  right_memory: Memory,
+  moved: Set(FileId),
+) -> Result(#(File, Memory, Memory), Nil) {
+  use #(block, rest) <- result.try(deque.pop_back(left_memory))
+  case block {
+    BFile(file) ->
+      case set.contains(moved, file.id) {
+        True ->
+          find_file_to_move(rest, deque.push_front(right_memory, block), moved)
+        False -> Ok(#(file, rest, right_memory))
+      }
+    _ -> find_file_to_move(rest, deque.push_front(right_memory, block), moved)
+  }
 }
 
 fn parse_chunk(
@@ -153,7 +260,7 @@ fn flatten_files_and_frees_loop(
   }
 }
 
-fn push_all_back(files: Deque(File), to_push: Deque(File)) -> Deque(File) {
+fn push_all_back(files: Deque(t), to_push: Deque(t)) -> Deque(t) {
   case deque.pop_front(to_push) {
     Error(_) -> files
     Ok(#(file, rest)) -> push_all_back(deque.push_back(files, file), rest)
