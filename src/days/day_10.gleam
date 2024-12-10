@@ -47,7 +47,18 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use height_list <- result.map(
+    input |> lines.lines |> list.try_map(lines.digits),
+  )
+
+  let point_array = height_list_to_point_arrays(height_list)
+  let nodes = point_array |> array.to_list |> list.flat_map(array.to_list)
+  let trailheads = get_trailheads(nodes)
+  let map_graph = generate_graph(point_array, nodes)
+
+  list.map(trailheads, fn(node) { dfs_2(map_graph, node.id) })
+  |> int.sum
+  |> int.to_string
 }
 
 fn height_list_to_point_arrays(
@@ -134,9 +145,24 @@ fn dfs(map_graph: MapGraph, node: Int, discovered: Set(Int)) -> Set(Int) {
   })
 }
 
-fn is_node_target(map_graph: MapGraph, id: Int) -> Bool {
-  case graph.get_context(map_graph, id) {
-    Error(_) -> False
-    Ok(graph.Context(_, node, _)) -> node.value.height == 9
+fn dfs_2(map_graph: MapGraph, node: Int) -> Int {
+  case get_node_height(map_graph, node) {
+    9 -> 1
+    _ ->
+      graph.get_context(map_graph, node)
+      |> result.map(fn(context) { context.outgoing |> dict.keys })
+      |> result.unwrap([])
+      |> list.fold(0, fn(acc, neighbor) { acc + dfs_2(map_graph, neighbor) })
   }
+}
+
+fn get_node_height(map_graph: MapGraph, id: Int) -> Int {
+  case graph.get_context(map_graph, id) {
+    Error(_) -> 0
+    Ok(graph.Context(_, node, _)) -> node.value.height
+  }
+}
+
+fn is_node_target(map_graph: MapGraph, id: Int) -> Bool {
+  get_node_height(map_graph, id) == 9
 }
