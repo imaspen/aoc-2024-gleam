@@ -1,10 +1,15 @@
 import days/part.{type Part, PartOne, PartTwo}
+import gleam/dict.{type Dict}
 import gleam/float
 import gleam/int
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/yielder
 import utils/lines
+
+type Stones =
+  Dict(Int, Int)
 
 pub fn day(part: Part, input: String) -> Result(String, String) {
   case part {
@@ -29,11 +34,49 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  // turns out the order of the stones isn't important after all...
+
+  use stones <- result.map(
+    input
+    |> lines.space_separated_ints
+    |> list.first
+    |> result.replace_error("Couldn't parse input."),
+  )
+
+  let stones_map =
+    list.group(stones, fn(s) { s })
+    |> dict.map_values(fn(_, l) { list.length(l) })
+
+  yielder.repeat(Nil)
+  |> yielder.take(75)
+  |> yielder.fold(stones_map, fn(stones, _) { blink_map(stones) })
+  |> dict.values
+  |> int.sum
+  |> int.to_string
 }
 
 fn blink(stones: List(Int)) -> List(Int) {
   list.flat_map(stones, mutate_stone)
+}
+
+fn blink_map(stones: Stones) -> Stones {
+  stones
+  |> dict.to_list
+  |> list.fold(dict.new(), fn(n_stones, input) {
+    let #(stone, count) = input
+    stone
+    |> mutate_stone
+    |> list.fold(n_stones, fn(nn_stones, new_stone) {
+      dict.upsert(nn_stones, new_stone, fn(b) { upsert_stones(b, count) })
+    })
+  })
+}
+
+fn upsert_stones(maybe_count: Option(Int), to_add: Int) -> Int {
+  case maybe_count {
+    None -> to_add
+    Some(count) -> count + to_add
+  }
 }
 
 fn mutate_stone(stone: Int) -> List(Int) {
