@@ -31,12 +31,18 @@ fn part_1(input: String) -> Result(String, String) {
   )
 
   map
-  |> get_fence_prices
+  |> get_fence_prices(False)
   |> int.to_string
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use map <- result.map(
+    parse_input(input) |> result.replace_error("Couldn't parse input"),
+  )
+
+  map
+  |> get_fence_prices(True)
+  |> int.to_string
 }
 
 fn parse_input(input: String) -> Result(Map, Nil) {
@@ -65,12 +71,13 @@ fn get_point(map: Map, point: Point) -> Result(Int, Nil) {
   |> result.try(array.get(_, point.x))
 }
 
-fn get_fence_prices(map: Map) -> Int {
-  get_fence_prices_loop(map, Some(Point(0, 0)), set.new(), 0)
+fn get_fence_prices(map: Map, count_edges: Bool) -> Int {
+  get_fence_prices_loop(map, count_edges, Some(Point(0, 0)), set.new(), 0)
 }
 
 fn get_fence_prices_loop(
   map: Map,
+  count_edges: Bool,
   maybe_pos: Option(Point),
   seen: Seen,
   acc: Int,
@@ -80,10 +87,16 @@ fn get_fence_prices_loop(
     Some(pos) -> {
       let next_pos = get_next_point(map, pos)
       case set.contains(seen, pos) {
-        True -> get_fence_prices_loop(map, next_pos, seen, acc)
+        True -> get_fence_prices_loop(map, count_edges, next_pos, seen, acc)
         False -> {
-          let #(next_seen, price) = get_fence_price(map, pos, seen)
-          get_fence_prices_loop(map, next_pos, next_seen, acc + price)
+          let #(next_seen, price) = get_fence_price(map, count_edges, pos, seen)
+          get_fence_prices_loop(
+            map,
+            count_edges,
+            next_pos,
+            next_seen,
+            acc + price,
+          )
         }
       }
     }
@@ -103,12 +116,18 @@ fn get_next_point(map: Map, pos: Point) -> Option(Point) {
   }
 }
 
-fn get_fence_price(map: Map, pos: Point, seen: Seen) -> #(Seen, Int) {
-  get_fence_price_loop(map, set.insert(seen, pos), [pos], 0, 0)
+fn get_fence_price(
+  map: Map,
+  count_edges: Bool,
+  pos: Point,
+  seen: Seen,
+) -> #(Seen, Int) {
+  get_fence_price_loop(map, count_edges, set.insert(seen, pos), [pos], 0, 0)
 }
 
 fn get_fence_price_loop(
   map: Map,
+  count_edges: Bool,
   seen: Seen,
   queue: List(Point),
   count_acc: Int,
@@ -130,10 +149,16 @@ fn get_fence_price_loop(
 
       get_fence_price_loop(
         map,
+        count_edges,
         new_seen,
         new_queue,
         count_acc + 1,
-        perimeter_acc + perimeter,
+        perimeter_acc
+          + perimeter
+          - case count_edges {
+          True -> on_edges(map, pos)
+          False -> 0
+        },
       )
     }
   }
@@ -151,4 +176,21 @@ fn get_neighbors(map: Map, pos: Point) -> #(List(Point), Int) {
       _ -> #(neighbors, perimeter + 1)
     }
   })
+}
+
+fn on_edges(map: Map, pos: Point) -> Int {
+  let curr = get_point(map, pos) |> result.unwrap(-1)
+  let Point(x, y) = pos
+
+  let gp = fn(gx, gy) {
+    get_point(map, Point(gx, gy)) |> result.unwrap(-1) == curr
+  }
+
+  let is_edge_above = !gp(x, y - 1) && !gp(x + 1, y - 1) && gp(x + 1, y)
+  let is_edge_right = !gp(x + 1, y) && !gp(x + 1, y + 1) && gp(x, y + 1)
+  let is_edge_below = !gp(x, y + 1) && !gp(x - 1, y + 1) && gp(x - 1, y)
+  let is_edge_left = !gp(x - 1, y) && !gp(x - 1, y - 1) && gp(x, y - 1)
+
+  [is_edge_above, is_edge_right, is_edge_below, is_edge_left]
+  |> list.count(fn(x) { x })
 }
