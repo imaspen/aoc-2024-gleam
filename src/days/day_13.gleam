@@ -30,7 +30,22 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use machines <- result.map(
+    parse_machines(input) |> result.replace_error("Couldn't parse input"),
+  )
+
+  machines |> list.map(fix_machine) |> solve_machines |> int.to_string
+}
+
+fn fix_machine(machine: Machine) -> Machine {
+  Machine(
+    machine.a,
+    machine.b,
+    Vec2(
+      machine.prize.x + 10_000_000_000_000,
+      machine.prize.y + 10_000_000_000_000,
+    ),
+  )
 }
 
 fn parse_machines(input: String) -> Result(List(Machine), Nil) {
