@@ -102,29 +102,28 @@ fn solve_machines(machines: List(Machine)) -> Int {
 // x_t = p_a * x_a + p_b * x_b
 // y_t = p_a * y_a + p_b * y_b
 //
-// isolate presses of a
+// isolate presses of b
 //
-// p_a * x_a = x_t - p_b * x_b
-// p_a = (x_t - p_b * x_b) / x_a
+// p_b * x_b = x_t - p_a * x_a
+// p_b = (x_t - p_a * x_a) / x_b
 //
-// p_a * y_a = y_t - p_b * y_b
-// p_a = (y_t - p_b * y_b) / y_a
+// p_b * y_b = y_t - p_a * y_a
+// p_b = (y_t - p_a * y_a) / y_b
 //
-// derive equation for presses of b
+// derive equation for presses of a
 //
-// (x_t - p_b * x_b) / x_a = (y_t - p_b * y_b) / y_a
-// y_a * (x_t - p_b * x_b) = x_a * (y_t - p_b * y_b)
-// y_a * x_t - y_a * p_b * x_b = x_a * y_t - x_a * p_b * y_b
-// y_a * x_t - y_a * p_b * x_b + x_a * p_b * y_b = x_a * y_t
-// y_a * x_t + x_a * p_b * y_b - y_a * p_b * x_b = x_a * y_t
-// x_a * p_b * y_b - y_a * p_b * x_b = x_a * y_t - y_a * x_t
-// p_b * (x_a * y_b - y_a * x_b) = x_a * y_t - y_a * x_t
-// p_b = (x_a * y_t - y_a * x_t) / (x_a * y_b - y_a * x_b)
+// (x_t - p_a * x_a) / x_b = (y_t - p_a * y_a) / y_b
+// y_b * (x_t - p_a * x_a) = x_b * (y_t - p_a * y_a)
+// x_t * y_b - p_a * x_a * y_b = y_t * x_b - p_a * x_b * y_a
+// p_a * x_b * y_a - p_a * x_a * y_b = y_t * x_b - x_t * y_b
+// p_a * (x_b * y_a - x_a * y_b) = y_t * x_b - x_t * y_b
+// p_a = (y_t * x_b - x_t * y_b) / (x_b * y_a - x_a * y_b)
+//
 fn solve_machine(machine: Machine) -> Int {
   let Machine(a:, b:, prize: t) = machine
 
-  let p_b = { a.x * t.y - a.y * t.x } / { a.x * b.y - a.y * b.x }
-  let p_a = { t.x - p_b * b.x } / a.x
+  let p_a = { t.y * b.x - t.x * b.y } / { b.x * a.y - a.x * b.y }
+  let p_b = { t.x - p_a * a.x } / b.x
 
   case Vec2(p_a * a.x + p_b * b.x, p_a * a.y + p_b * b.y) == t {
     True -> p_a * 3 + p_b
