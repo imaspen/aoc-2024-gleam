@@ -2,9 +2,9 @@ import days/part.{type Part, PartOne, PartTwo}
 import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/int
-import gleam/io
 import gleam/list
-import gleam/pair
+import gleam/option.{None, Some}
+import gleam/order
 import gleam/result
 import gleam/set.{type Set}
 import gleam/string
@@ -16,14 +16,14 @@ type State {
   State(pos: Point, dir: Direction)
 }
 
-type Scores =
-  Dict(Point, Int)
+type Distances =
+  Dict(State, Int)
 
 type CameFrom =
-  Dict(Point, Point)
+  Dict(State, List(State))
 
 type Queue =
-  Dict(Point, Direction)
+  Set(State)
 
 type Map =
   map.Map(Nil)
@@ -40,15 +40,27 @@ fn part_1(input: String) -> Result(String, String) {
     parse_input(input) |> result.replace_error("Couldn't parse input."),
   )
 
-  use score <- result.map(
-    a_star(map, start, end) |> result.replace_error("Couldn't find target."),
+  use #(score, _) <- result.map(
+    dijkstra(map, start, end) |> result.replace_error("Couldn't find route."),
   )
 
   int.to_string(score)
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use #(map, start, end) <- result.try(
+    parse_input(input) |> result.replace_error("Couldn't parse input."),
+  )
+
+  use #(score, came_from) <- result.map(
+    dijkstra(map, start, end) |> result.replace_error("Couldn't find route"),
+  )
+
+  came_from
+  |> backtrack(start, end, score)
+  |> set.fold(set.new(), fn(acc, val) { set.insert(acc, val.pos) })
+  |> set.size
+  |> int.to_string
 }
 
 fn parse_input(input: String) -> Result(#(Map, Point, Point), Nil) {
@@ -95,84 +107,87 @@ fn parse_cell(
   }
 }
 
-fn a_star(map: Map, start_point: Point, end_point: Point) -> Result(Int, Nil) {
-  let queue = dict.from_list([#(start_point, East)])
-  let g_scores = dict.from_list([#(start_point, 0)])
-  let f_scores = dict.from_list([#(start_point, h(start_point, end_point))])
+fn dijkstra(
+  map: Map,
+  start_point: Point,
+  end_point: Point,
+) -> Result(#(Int, CameFrom), Nil) {
+  let queue = set.from_list([State(start_point, East)])
+  let distances = dict.from_list([#(State(start_point, East), 0)])
 
-  a_star_loop(map, end_point, queue, f_scores, g_scores, dict.new())
-  |> dict.get(end_point)
+  dijkstra_loop(map, end_point, queue, distances, dict.new())
 }
 
-fn a_star_loop(
+fn dijkstra_loop(
   map: Map,
   target: Point,
   queue: Queue,
-  f_scores: Scores,
-  g_scores: Scores,
+  distances: Distances,
   came_from: CameFrom,
-) -> Scores {
-  case get_current(queue, f_scores) {
-    Error(_) -> g_scores
+) -> Result(#(Int, CameFrom), Nil) {
+  case get_current(queue, distances) {
+    Error(_) -> Error(Nil)
     Ok(#(curr, rest)) -> {
-      use <- bool.guard(curr.pos == target, g_scores)
+      use <- bool.lazy_guard(curr.pos == target, fn() {
+        use dist <- result.map(dict.get(distances, curr))
+        #(dist, came_from)
+      })
 
-      let #(new_queue, new_f_scores, new_g_scores, new_came_from) =
-        get_neighbors(map, curr.pos)
-        |> list.fold(#(rest, f_scores, g_scores, came_from), fn(acc, n) {
-          update_for_neighbor(acc, curr, target, n)
+      let #(new_queue, new_distances, new_came_from) =
+        get_neighbors(map, curr)
+        |> list.fold(#(rest, distances, came_from), fn(acc, n) {
+          update_for_neighbor(acc, curr, n)
         })
 
-      a_star_loop(
-        map,
-        target,
-        new_queue,
-        new_f_scores,
-        new_g_scores,
-        new_came_from,
-      )
+      dijkstra_loop(map, target, new_queue, new_distances, new_came_from)
     }
   }
 }
 
-fn h(at: Point, target: Point) -> Int {
-  int.absolute_value(target.x - at.x) + int.absolute_value(target.y - at.y)
+fn get_dist_of(distances: Distances, at: State) -> Int {
+  dict.get(distances, at) |> result.unwrap(1_000_000_000_000)
 }
 
-fn get_score(scores: Scores, at: Point) -> Int {
-  dict.get(scores, at) |> result.unwrap(1_000_000_000_000)
-}
-
-fn get_current(queue: Queue, f_scores: Scores) -> Result(#(State, Queue), Nil) {
-  use #(pos, dir) <- result.map(
+fn get_current(
+  queue: Queue,
+  distances: Distances,
+) -> Result(#(State, Queue), Nil) {
+  use state <- result.map(
     queue
-    |> dict.to_list
+    |> set.to_list
     |> list.sort(fn(a, b) {
-      int.compare(
-        get_score(f_scores, pair.first(a)),
-        get_score(f_scores, pair.first(b)),
-      )
+      int.compare(get_dist_of(distances, a), get_dist_of(distances, b))
     })
     |> list.first,
   )
 
-  #(State(pos:, dir:), dict.delete(queue, pos))
+  #(state, set.delete(queue, state))
 }
 
-fn get_neighbors(map: Map, at: Point) -> List(State) {
-  [North, South, East, West]
-  |> list.map(fn(dir) {
-    let pos = map.move(at, dir)
-    use _ <- result.map(map.get_at(map, pos))
-    State(pos:, dir:)
-  })
-  |> result.values
+fn get_neighbors(map: Map, at: State) -> List(State) {
+  let turns =
+    case at.dir {
+      North | South -> [State(..at, dir: West), State(..at, dir: East)]
+      East | West -> [State(..at, dir: North), State(..at, dir: South)]
+    }
+    |> list.filter(fn(s) { map.get_at_dir(map, s.pos, s.dir) |> result.is_ok })
+
+  case map.get_at_dir(map, at.pos, at.dir) {
+    Error(_) -> turns
+    Ok(_) -> [State(..at, pos: map.move(at.pos, at.dir)), ..turns]
+  }
 }
 
-fn get_tentative_g_score(at: State, neighbor: State, g_scores: Scores) -> Int {
-  1
-  + get_score(g_scores, at.pos)
-  + case int.absolute_value(turn_price(at.dir) - turn_price(neighbor.dir)) {
+fn get_dist(at: State, neighbor: State) -> Int {
+  get_walk_dist(at.pos, neighbor.pos) + get_turn_dist(at.dir, neighbor.dir)
+}
+
+fn get_walk_dist(at: Point, to: Point) -> Int {
+  int.absolute_value(to.x - at.x) + int.absolute_value(to.y - at.y)
+}
+
+fn get_turn_dist(at: Direction, to: Direction) -> Int {
+  case int.absolute_value(turn_price(at) - turn_price(to)) {
     3000 -> 1000
     x -> x
   }
@@ -188,19 +203,75 @@ fn turn_price(dir: Direction) -> Int {
 }
 
 fn update_for_neighbor(
-  acc: #(Queue, Scores, Scores, CameFrom),
+  acc: #(Queue, Distances, CameFrom),
   curr: State,
-  target: Point,
   neighbor: State,
 ) {
-  let #(queue, f_scores, g_scores, came_from) = acc
-  let tentative_g = get_tentative_g_score(curr, neighbor, g_scores)
-  use <- bool.guard(tentative_g >= get_score(g_scores, neighbor.pos), acc)
+  let #(queue, distances, came_from) = acc
+  let alt = get_dist_of(distances, curr) + get_dist(curr, neighbor)
 
-  #(
-    dict.insert(queue, neighbor.pos, neighbor.dir),
-    dict.insert(f_scores, neighbor.pos, tentative_g + h(neighbor.pos, target)),
-    dict.insert(g_scores, neighbor.pos, tentative_g),
-    dict.insert(came_from, neighbor.pos, curr.pos),
+  case int.compare(alt, get_dist_of(distances, neighbor)) {
+    order.Lt -> #(
+      set.insert(queue, neighbor),
+      dict.insert(distances, neighbor, alt),
+      dict.insert(came_from, neighbor, [curr]),
+    )
+    order.Eq -> {
+      #(
+        queue,
+        distances,
+        dict.upsert(came_from, neighbor, fn(ml) {
+          case ml {
+            None -> [curr]
+            Some(l) -> [curr, ..l]
+          }
+        }),
+      )
+    }
+    order.Gt -> acc
+  }
+}
+
+fn backtrack(came_from: CameFrom, from: Point, to: Point, target_score: Int) {
+  backtrack_loop(
+    came_from,
+    from,
+    target_score,
+    [
+      #(
+        State(pos: to, dir: North),
+        0,
+        set.from_list([State(pos: to, dir: North)]),
+      ),
+    ],
+    set.new(),
   )
+}
+
+fn backtrack_loop(
+  next: CameFrom,
+  target: Point,
+  target_score: Int,
+  queue: List(#(State, Int, Set(State))),
+  acc: Set(State),
+) {
+  case queue {
+    [] -> acc
+    [#(at, dist, seen), ..rest] -> {
+      use <- bool.lazy_guard(when: at.pos == target, return: fn() {
+        backtrack_loop(next, target, target_score, rest, set.union(seen, acc))
+      })
+      use <- bool.lazy_guard(when: dist >= target_score, return: fn() {
+        backtrack_loop(next, target, target_score, rest, acc)
+      })
+
+      let ns =
+        dict.get(next, at)
+        |> result.unwrap([])
+        |> list.filter(fn(n) { !set.contains(seen, n) })
+        |> list.map(fn(n) { #(n, get_dist(n, at), set.insert(seen, n)) })
+
+      backtrack_loop(next, target, target_score, list.flatten([ns, rest]), acc)
+    }
+  }
 }
