@@ -2,9 +2,11 @@ import days/part.{type Part, PartOne, PartTwo}
 import gleam/bool
 import gleam/deque
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/result
 import gleam/set.{type Set}
+import gleam/string
 import utils/lines
 import utils/map.{type Point, Point}
 
@@ -19,13 +21,14 @@ pub fn day(part: Part, input: String) -> Result(String, String) {
 }
 
 fn part_1(input: String) -> Result(String, String) {
-  use #(map, dim) <- result.map(parse_input(input))
-
-  bfs(map, Point(0, 0), dim) |> int.to_string
+  use #(map, dim) <- result.try(parse_input(input, 1024))
+  use res <- result.map(bfs(map, dim))
+  res |> int.to_string
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use #(points, max) <- result.try(parse_points(input))
+  binary_search(points, max) |> result.replace_error("Couldn't find point")
 }
 
 // Part 1
@@ -36,18 +39,18 @@ type Queue =
 type Seen =
   Set(Point)
 
-fn bfs(map: Map, from: Point, to: Int) {
-  let queue = deque.from_list([#(from, 0)])
+fn bfs(map: Map, to: Int) -> Result(Int, String) {
+  let queue = deque.from_list([#(Point(0, 0), 0)])
   let seen = set.new()
 
   bfs_loop(map, to, queue, seen)
 }
 
-fn bfs_loop(map: Map, to: Int, queue: Queue, seen: Seen) {
+fn bfs_loop(map: Map, to: Int, queue: Queue, seen: Seen) -> Result(Int, String) {
   case deque.pop_front(queue) {
-    Error(_) -> -1
+    Error(_) -> Error("Couldn't find a path to the point")
     Ok(#(#(at, dist), queue)) -> {
-      use <- bool.guard(when: at.x == to && at.y == to, return: dist)
+      use <- bool.guard(when: at.x == to && at.y == to, return: Ok(dist))
 
       let #(queue, seen) =
         get_neighbors(map, at, to)
@@ -83,17 +86,42 @@ fn get_neighbors(map: Map, of: Point, max: Int) -> List(Point) {
   |> result.values
 }
 
+// Part 2
+
+fn binary_search(points: List(Point), map_size: Int) -> Result(String, Nil) {
+  let time = binary_search_loop(points, map_size, 0, list.length(points))
+  io.println(time |> int.to_string)
+  use point <- result.map(list.drop(points, time) |> list.first)
+  string.join([point.x, point.y] |> list.map(int.to_string), ",")
+}
+
+fn binary_search_loop(
+  points: List(Point),
+  map_size: Int,
+  min: Int,
+  max: Int,
+) -> Int {
+  use <- bool.guard(when: max - min <= 1, return: min)
+  let mid = { min + max } / 2
+  let map = build_map(points, mid)
+  case bfs(map, map_size) {
+    Error(_) -> binary_search_loop(points, map_size, min, mid)
+    Ok(_) -> binary_search_loop(points, map_size, mid, max)
+  }
+}
+
 // Parsing
 
-fn parse_input(input: String) -> Result(#(Map, Int), String) {
+fn parse_input(input: String, time: Int) -> Result(#(Map, Int), String) {
   use #(points, max) <- result.map(parse_points(input))
 
-  let map =
-    points
-    |> list.take(1024)
-    |> list.fold(map.new(), fn(map, point) { map.insert(map, point, Nil) })
+  #(build_map(points, time), max)
+}
 
-  #(map, max)
+fn build_map(points: List(Point), time: Int) -> Map {
+  points
+  |> list.take(time)
+  |> list.fold(map.new(), fn(map, point) { map.insert(map, point, Nil) })
 }
 
 fn parse_points(input: String) -> Result(#(List(Point), Int), String) {
@@ -107,7 +135,6 @@ fn parse_points(input: String) -> Result(#(List(Point), Int), String) {
 
   use points <- result.map(
     lines
-    |> list.take(1024)
     |> list.try_map(fn(line) {
       case line {
         [x, y] -> {
