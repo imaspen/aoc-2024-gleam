@@ -18,6 +18,10 @@ pub fn new() -> Map(v) {
   dict.new()
 }
 
+pub fn insert(map: Map(v), p: Point, v: v) -> Map(v) {
+  dict.insert(map, p, v)
+}
+
 pub fn move(pos: Point, dir: Direction) -> Point {
   let Point(x:, y:) = pos
   case dir {
