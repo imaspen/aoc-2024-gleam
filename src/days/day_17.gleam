@@ -52,17 +52,29 @@ fn part_1(input: String) -> Result(String, String) {
   )
 
   step(instructions, registers)
+  |> list.map(int.to_string)
+  |> string.join(",")
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use target <- result.try(
+    get_target(input) |> result.replace_error("Couldn't parse input."),
+  )
+
+  use #(_, instructions) <- result.try(
+    parse_input(input)
+    |> result.replace_error("Couldn't parse input."),
+  )
+
+  dfs(instructions, list.reverse(target))
+  |> result.replace_error("Couldn't find a valid input.")
+  |> result.map(int.to_string)
 }
 
 // Part 1
 
-fn step(instructions: Instructions, registers: Registers) -> String {
-  let output = step_loop(instructions, registers, 0, [])
-  output |> list.reverse |> list.map(int.to_string) |> string.join(",")
+fn step(instructions: Instructions, registers: Registers) -> List(Int) {
+  step_loop(instructions, registers, 0, [])
 }
 
 fn step_loop(
@@ -73,7 +85,7 @@ fn step_loop(
 ) -> List(Int) {
   let Registers(a:, b:, c:) = registers
   case array.get(instructions, pc) {
-    Error(Nil) -> output
+    Error(Nil) -> list.reverse(output)
     Ok(instruction) -> {
       case instruction {
         Adv(operand) -> {
@@ -159,6 +171,57 @@ fn get_combo_value(operand: Operand, registers: Registers) -> Int {
         RegB -> registers.b
         RegC -> registers.c
       }
+    }
+  }
+}
+
+// Part 2
+
+// B = A % 8
+// B = B XOR 1
+// C = A / (2^B)
+// B = B XOR 5
+// B = B XOR C
+// OUT += B
+// A = A / (2^3)
+
+// takes the bottom 3 bits, does some processing, and outputs
+// then, drops the bottom 3 bits, and repeats
+
+fn get_target(input: String) {
+  case lines.blocks(input) {
+    [_, program] -> {
+      case string.split(program, " ") {
+        [_, str] -> {
+          str |> string.split(",") |> list.try_map(int.parse)
+        }
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
+fn dfs(instructions: Instructions, expected: List(Int)) -> Result(Int, Nil) {
+  dfs_loop(instructions, expected, 0)
+}
+
+fn dfs_loop(
+  instructions: Instructions,
+  expected: List(Int),
+  acc: Int,
+) -> Result(Int, Nil) {
+  case expected {
+    [] -> Ok(acc)
+    [curr, ..rest] -> {
+      list.range(0, 7)
+      |> list.filter(fn(x) {
+        list.first(step(instructions, Registers(acc * 8 + x, 0, 0))) == Ok(curr)
+      })
+      |> list.map(fn(x) { dfs_loop(instructions, rest, acc * 8 + x) })
+      |> result.values
+      |> list.sort(int.compare)
+      |> list.first
     }
   }
 }
