@@ -1,8 +1,10 @@
 import days/part.{type Part, PartOne, PartTwo}
+import gleam/int
 import gleam/list
 import gleam/result
 import gleam/set.{type Set}
 import gleam/string
+import rememo/memo
 import utils/lines
 
 type Towel =
@@ -27,7 +29,16 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use #(patterns, towels) <- result.map(
+    parse_input(input) |> result.replace_error("Couldn't parse input."),
+  )
+
+  use cache <- memo.create()
+
+  patterns
+  |> list.map(is_towel_valid_2(_, towels, cache))
+  |> int.sum
+  |> int.to_string
 }
 
 // Part 1
@@ -49,8 +60,7 @@ fn is_towel_valid_loop(
         _ -> {
           let new_patterns =
             towels
-            |> list.map(does_towel_match(pattern, _))
-            |> result.values
+            |> list.filter_map(does_towel_match(pattern, _))
             |> list.filter(fn(t) { !set.contains(seen, t) })
 
           let seen = list.fold(new_patterns, seen, set.insert)
@@ -69,6 +79,22 @@ fn does_towel_match(pattern: Towel, towel: Towel) -> Result(Towel, Nil) {
     [], [_, ..] -> Error(Nil)
     [p, ..], [t, ..] if t != p -> Error(Nil)
     [_, ..p], [_, ..t] -> does_towel_match(p, t)
+  }
+}
+
+// Part 2
+
+fn is_towel_valid_2(pattern: Towel, towels: Towels, cache) -> Int {
+  use <- memo.memoize(cache, pattern)
+
+  case pattern {
+    [] -> 1
+    _ -> {
+      towels
+      |> list.filter_map(does_towel_match(pattern, _))
+      |> list.map(is_towel_valid_2(_, towels, cache))
+      |> int.sum
+    }
   }
 }
 
