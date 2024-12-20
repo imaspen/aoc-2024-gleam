@@ -5,20 +5,16 @@ import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/result
-import gleam/set.{type Set}
 import gleam/string
 import gleam/yielder
 import utils/lines
 import utils/map.{type Point, Point}
 
 type Map =
-  map.Map(Nil)
+  map.Map(Int)
 
 type Queue =
   Deque(#(Point, Int))
-
-type Seen =
-  Set(Point)
 
 pub fn day(part: Part, input: String) -> Result(String, String) {
   case part {
@@ -28,94 +24,33 @@ pub fn day(part: Part, input: String) -> Result(String, String) {
 }
 
 fn part_1(input: String) -> Result(String, String) {
-  use #(threshold, map, start, end, dim) <- result.try(parse_input(input))
-
-  use target_score <- result.map(bfs(map, start, end, 1_000_000_000))
-
-  find_permutations(map, dim)
-  |> list.map(bfs(_, start, end, target_score - threshold))
-  |> result.values
-  |> list.length
-  |> int.to_string
+  run(input, 2)
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  run(input, 20)
 }
 
-// Part 1
+fn run(input: String, cheat_durr: Int) -> Result(String, String) {
+  use #(threshold, map, start, end) <- result.map(parse_input(input))
+  let distances_from_start = get_distances(map, start)
+  let distances_to_end = get_distances(map, end)
+  let assert Ok(non_cheat_time) = map.get_at(distances_from_start, end)
 
-fn find_permutations(map: Map, dim: Point) -> List(Map) {
-  let Point(x: dx, y: dy) = dim
-  list.range(1, dy - 1)
-  |> list.flat_map(fn(y) {
-    list.range(1, dx - 1)
-    |> list.map(fn(x) {
-      let p = Point(x:, y:)
-      case map.get_at(map, p) {
-        Ok(_) -> {
-          let n_walls =
-            [map.North, map.South, map.East, map.West]
-            |> list.map(map.move(p, _))
-            |> list.map(map.get_at(map, _))
-            |> list.count(result.is_ok)
-
-          case n_walls <= 2 {
-            True -> Ok(p)
-            False -> Error(Nil)
-          }
-        }
-        Error(_) -> Error(Nil)
-      }
-    })
-    |> result.values
+  dict.to_list(distances_from_start)
+  |> list.map(fn(at) {
+    let #(at, dist) = at
+    get_cheats(
+      distances_to_end,
+      at,
+      dist,
+      non_cheat_time,
+      cheat_durr,
+      threshold,
+    )
   })
-  |> list.map(dict.delete(map, _))
-}
-
-fn bfs(
-  map: Map,
-  start: Point,
-  target: Point,
-  target_score: Int,
-) -> Result(Int, String) {
-  let queue = deque.from_list([#(start, 0)])
-  let seen = set.new()
-
-  bfs_loop(map, target, target_score, queue, seen)
-}
-
-fn bfs_loop(
-  map: Map,
-  target: Point,
-  target_score: Int,
-  queue: Queue,
-  seen: Seen,
-) -> Result(Int, String) {
-  case deque.pop_front(queue) {
-    Error(_) -> Error("Couldn't find a path to the point")
-    Ok(#(#(at, dist), queue)) -> {
-      use <- bool.guard(when: at == target, return: Ok(dist))
-      use <- bool.guard(
-        when: dist >= target_score,
-        return: Error("Path too long"),
-      )
-
-      let #(queue, seen) =
-        get_neighbors(map, at)
-        |> list.fold(#(queue, seen), fn(acc, neighbor) {
-          use <- bool.guard(when: set.contains(seen, neighbor), return: acc)
-
-          let #(queue, seen) = acc
-          #(
-            deque.push_back(queue, #(neighbor, dist + 1)),
-            set.insert(seen, neighbor),
-          )
-        })
-
-      bfs_loop(map, target, target_score, queue, seen)
-    }
-  }
+  |> int.sum
+  |> int.to_string
 }
 
 fn get_neighbors(map: Map, of: Point) -> List(Point) {
@@ -130,11 +65,76 @@ fn get_neighbors(map: Map, of: Point) -> List(Point) {
   |> result.values
 }
 
+fn get_distances(map: Map, start: Point) -> Map {
+  let queue = deque.from_list([#(start, 0)])
+  let seen = dict.from_list([#(start, 0)])
+
+  get_distances_loop(map, queue, seen)
+}
+
+fn get_distances_loop(map: Map, queue: Queue, distances: Map) -> Map {
+  case deque.pop_front(queue) {
+    Error(_) -> distances
+    Ok(#(#(at, dist), queue)) -> {
+      let #(queue, distances) =
+        get_neighbors(map, at)
+        |> list.fold(#(queue, distances), fn(acc, neighbor) {
+          use <- bool.guard(
+            when: dict.has_key(distances, neighbor),
+            return: acc,
+          )
+
+          let #(queue, distances) = acc
+          #(
+            deque.push_back(queue, #(neighbor, dist + 1)),
+            map.insert(distances, neighbor, dist + 1),
+          )
+        })
+
+      get_distances_loop(map, queue, distances)
+    }
+  }
+}
+
+fn get_cheats(
+  distances_to_end: Map,
+  at: Point,
+  from_start: Int,
+  non_cheat_time: Int,
+  cheat_durr: Int,
+  target_cheat_score: Int,
+) -> Int {
+  list.range(-cheat_durr, cheat_durr)
+  |> list.map(fn(y) {
+    list.range(-cheat_durr, cheat_durr)
+    |> list.count(fn(x) {
+      let d = int.absolute_value(x) + int.absolute_value(y)
+      case d <= cheat_durr && d >= 2 {
+        True -> {
+          let pos = Point(x: x + at.x, y: y + at.y)
+          case map.get_at(distances_to_end, pos) {
+            Error(_) -> False
+            Ok(to_end) -> {
+              case
+                non_cheat_time - { from_start + d + to_end }
+                >= target_cheat_score
+              {
+                True -> True
+                False -> False
+              }
+            }
+          }
+        }
+        False -> False
+      }
+    })
+  })
+  |> int.sum
+}
+
 // Parsing
 
-fn parse_input(
-  input: String,
-) -> Result(#(Int, Map, Point, Point, Point), String) {
+fn parse_input(input: String) -> Result(#(Int, Map, Point, Point), String) {
   use #(cheat_threshold, map_str) <- result.map(case lines.blocks(input) {
     [a] -> Ok(#(100, a))
     [a, b] -> {
@@ -147,50 +147,42 @@ fn parse_input(
     _ -> Error("Couldn't parse input.")
   })
 
-  let #(map, start, end, dim) = parse_map(map_str)
+  let #(map, start, end) = parse_map(map_str)
 
-  #(cheat_threshold, map, start, end, dim)
+  #(cheat_threshold, map, start, end)
 }
 
-fn parse_map(input: String) -> #(Map, Point, Point, Point) {
+fn parse_map(input: String) -> #(Map, Point, Point) {
   lines.lines(input)
   |> yielder.from_list
   |> yielder.index
-  |> yielder.fold(
-    #(map.new(), Point(0, 0), Point(0, 0), Point(0, 0)),
-    parse_row,
-  )
+  |> yielder.fold(#(map.new(), Point(0, 0), Point(0, 0)), parse_row)
 }
 
 fn parse_row(
-  acc: #(Map, Point, Point, Point),
+  acc: #(Map, Point, Point),
   pair: #(String, Int),
-) -> #(Map, Point, Point, Point) {
+) -> #(Map, Point, Point) {
   let #(row, y) = pair
-  let #(map, start, end, dim) = acc
-  let dim = Point(..dim, y:)
 
   string.to_graphemes(row)
   |> yielder.from_list
   |> yielder.index
-  |> yielder.fold(#(map, start, end, dim), fn(acc, pair) {
-    parse_char(y, acc, pair)
-  })
+  |> yielder.fold(acc, fn(acc, pair) { parse_char(y, acc, pair) })
 }
 
 fn parse_char(
   y: Int,
-  acc: #(Map, Point, Point, Point),
+  acc: #(Map, Point, Point),
   pair: #(String, Int),
-) -> #(Map, Point, Point, Point) {
+) -> #(Map, Point, Point) {
   let #(char, x) = pair
-  let #(map, start, end, dim) = acc
-  let dim = Point(..dim, x:)
+  let #(map, start, end) = acc
 
   case char {
-    "#" -> #(map.insert(map, Point(x, y), Nil), start, end, dim)
-    "S" -> #(map, Point(x, y), end, dim)
-    "E" -> #(map, start, Point(x, y), dim)
-    _ -> #(map, start, end, dim)
+    "#" -> #(map.insert(map, Point(x, y), -1), start, end)
+    "S" -> #(map, Point(x, y), end)
+    "E" -> #(map, start, Point(x, y))
+    _ -> acc
   }
 }
