@@ -1,4 +1,5 @@
 import days/part.{type Part, PartOne, PartTwo}
+import gleam/bool
 import gleam/dict
 import gleam/int
 import gleam/list
@@ -46,7 +47,34 @@ fn part_1(input: String) -> Result(String, String) {
 }
 
 fn part_2(input: String) -> Result(String, String) {
-  todo
+  use graph <- result.try(
+    parse_input(input) |> result.replace_error("Couldn't parse input."),
+  )
+
+  let nodes =
+    graph.nodes(graph)
+    |> list.map(fn(n) {
+      let Node(x, _) = n
+      x
+    })
+    |> set.from_list
+
+  use password_set <- result.try(
+    bron_kerbosch(graph, set.new(), nodes, set.new(), [])
+    |> list.sort(fn(a, b) { int.compare(set.size(b), set.size(a)) })
+    |> list.first
+    |> result.replace_error("Couldn't find a password."),
+  )
+
+  password_set
+  |> set.to_list
+  |> list.sort(int.compare)
+  |> list.try_map(fn(n) {
+    use Context(_, Node(_, label), _) <- result.map(graph.get_context(graph, n))
+    label
+  })
+  |> result.map(string.join(_, ","))
+  |> result.replace_error("Couldn't decode password.")
 }
 
 fn search(
@@ -67,6 +95,44 @@ fn search(
 
     set.insert(set, set.from_list([node, a, b]))
   })
+}
+
+fn bron_kerbosch(
+  graph: NetGraph,
+  r: Set(Int),
+  p: Set(Int),
+  x: Set(Int),
+  acc: List(Set(Int)),
+) -> List(Set(Int)) {
+  use <- bool.guard(when: set.is_empty(p) && set.is_empty(x), return: [r, ..acc])
+  bron_kerbosch_loop(graph, r, p, x, acc)
+}
+
+fn bron_kerbosch_loop(
+  graph: NetGraph,
+  r: Set(Int),
+  p: Set(Int),
+  x: Set(Int),
+  acc: List(Set(Int)),
+) -> List(Set(Int)) {
+  case set.to_list(p) {
+    [] -> acc
+    [v, ..] -> {
+      let assert Ok(Context(_, _, neighbors)) = graph.get_context(graph, v)
+      let ns = set.from_list(dict.keys(neighbors))
+      let acc =
+        bron_kerbosch(
+          graph,
+          set.insert(r, v),
+          set.intersection(p, ns),
+          set.intersection(x, ns),
+          acc,
+        )
+      let p = set.delete(p, v)
+      let x = set.insert(x, v)
+      bron_kerbosch_loop(graph, r, p, x, acc)
+    }
+  }
 }
 
 fn parse_input(input: String) {
