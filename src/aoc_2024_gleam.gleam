@@ -24,6 +24,7 @@ import days/day_21
 import days/day_22
 import days/day_23
 import days/day_24
+import days/day_25
 import days/part.{type Part, PartOne, PartTwo}
 import gleam/int
 import gleam/io
@@ -40,10 +41,6 @@ fn usage_error(message: String) -> Result(_, String) {
   Error(message <> "Usage: aoc_2024_gleam <day> <part>
   day: the day to run
   part: the part to run")
-}
-
-fn day_not_implemented_error(day: String) -> Result(_, String) {
-  Error("Day " <> day <> " not yet implemented")
 }
 
 pub fn main() {
@@ -94,7 +91,7 @@ fn get_day(day: String) -> Result(#(Int, Day), String) {
     22 -> Ok(day_22.day)
     23 -> Ok(day_23.day)
     24 -> Ok(day_24.day)
-    x if x >= 1 && x <= 25 -> day_not_implemented_error(day)
+    25 -> Ok(day_25.day)
     _ -> usage_error("Day should be between 1 & 25")
   })
 
